@@ -1,4 +1,10 @@
-#include <mpi.h>
+#ifdef MPI
+  // mpi.h declares a C++ namespace called 'MPI'.  Avoid conflicts.
+# undef MPI
+# include <mpi.h>
+# define MPI
+#else
+#endif
 
 #include <functional>
 #include <numeric>
@@ -7,15 +13,13 @@
 #include <sstream>
 
 #include "dmtcp_coordinator.h"
+// NOTE:  lookup_service.h is conditionally dependent on '#ifdef MPI'
 #include "lookup_service.h"
 #include "mana_coordinator.h"
 #include "mana_coord_proto.h"
 #include "jtimer.h"
 
 using namespace dmtcp;
-
-// FIXME: For debugging, remove it after debugging
-extern DmtcpCoordinator prog;
 
 typedef dmtcp::map<dmtcp::CoordClient*, rank_state_t> ClientToStateMap;
 typedef dmtcp::map<dmtcp::CoordClient*, phase_t> ClientToPhaseMap;
@@ -58,6 +62,7 @@ printNonReadyRanks()
 void
 printMpiDrainStatus(const LookupService& lookupService)
 {
+  // FIXME:  Can this be done using LookupService::getUniqueId() ?
   const KeyValueMap* map = lookupService.getMap(MPI_SEND_RECV_DB);
   if (!map) {
     JTRACE("No send recv database");
@@ -183,7 +188,7 @@ processPreSuspendClientMsgHelper(DmtcpCoordinator *coord,
     JTIMER_START(twoPc);
     firstTime = false;
   }
-  ComputationStatus status = coord->getStatus();
+  DmtcpCoordinator::ComputationStatus status = coord->getStatus();
 
   // Verify correctness of the response
   if (msg.extraBytes != sizeof(rank_state_t) || !extraData) {
@@ -209,7 +214,12 @@ processPreSuspendClientMsgHelper(DmtcpCoordinator *coord,
     return;
   }
   JTRACE("Received pre-suspend response from all ranks");
+#if 0
+  // FIXME: For debugging, remove it after debugging
+  // prog was declared statis in dmtcp_coordinator.cpp; This shouldn't work.
+  extern DmtcpCoordinator prog;
   printf("%s\n", prog.printList().c_str());
+#endif
 
   JTRACE("Checking if we can send the checkpoint message");
   // We are ready! If all clients responded with IN_READY, inform the
