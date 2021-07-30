@@ -239,23 +239,23 @@ TwoPhaseAlgo::preSuspendBarrier(const void *data)
      .state = ST_UNKNOWN, .currState = getCurrState()});
   // maintain consistent view for DMTCP coordinator
   st = getCurrState();
-  int gid = VirtualGlobalCommId::instance().getGlobalId(_comm);
+  int globalId = VirtualGlobalCommId::instance().getGlobalId(_comm);
   commStateHistoryAdd(
-    {.lineNo = __LINE__, ._comm = _comm, .comm = gid,
+    {.lineNo = __LINE__, ._comm = _comm, .comm = globalId,
      .state = st, .currState = getCurrState()});
   _commAndStateMutex.unlock();
-  rank_state_t state = { .rank = procRank, .comm = gid, .st = st};
+  rank_state_t state = { .rank = procRank, .comm = globalId, .st = st};
   _commAndStateMutex.lock();
   commStateHistoryAdd(
-    {.lineNo = __LINE__, ._comm = _comm, .comm = gid,
+    {.lineNo = __LINE__, ._comm = _comm, .comm = globalId,
      .state = st, .currState = getCurrState()});
   JASSERT(state.comm != MPI_COMM_NULL || state.st == IS_READY)
-	 (state.comm)(state.st)(gid)(_currState)(query);
+         (state.comm)(state.st)(globalId)(_currState)(query);
   commStateHistoryAdd(
-    {.lineNo = __LINE__, ._comm = _comm, .comm = gid,
+    {.lineNo = __LINE__, ._comm = _comm, .comm = globalId,
      .state = st, .currState = getCurrState()});
   _commAndStateMutex.unlock();
-  JTRACE("Sending DMT_PRE_SUSPEND_RESPONSE message")(procRank)(gid)(st);
+  JTRACE("Sending DMT_PRE_SUSPEND_RESPONSE message")(procRank)(globalId)(st);
   msg.extraBytes = sizeof state;
   informCoordinatorOfCurrState(msg, &state);
 }

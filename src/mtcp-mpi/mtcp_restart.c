@@ -120,14 +120,20 @@ static void unmap_memory_areas_and_restore_vdso(RestoreInfo *rinfo,
 //         case, or else simulate the action of MAP_FIXED_NOREPLACE.
 void* mmap_fixed_noreplace(void *addr, size_t len, int prot, int flags,
                          int fd, off_t offset) {
+  int mtcp_sys_errno;  // mtcp_sys_mmap, etc., are macros using this
   if (flags & MAP_FIXED) {
     flags ^= MAP_FIXED;
   }
   void *addr2 = mtcp_sys_mmap(addr, len, prot, flags, fd, offset);
   if (addr == addr2) {
     return addr2;
-  } else {
+  } else if (addr2 != MAP_FAILED) {
+    // undo the mmap
     mtcp_sys_munmap(addr2, len);
+    mtcp_sys_errno = EEXIST;
+    return MAP_FAILED;
+  } else {
+    // the mmap really did fail
     return MAP_FAILED;
   }
 }
@@ -1183,7 +1189,7 @@ restorememoryareas(RestoreInfo *rinfo_ptr, LowerHalfInfo_t *linfo_ptr)
 
   if (rinfo_ptr->use_gdb) {
     MTCP_PRINTF("Called with --use-gdb.  A useful command is:\n"
-                "    (gdb) lh_info proc mapping");
+                "    (gdb) info proc mapping\n");
     if (rinfo_ptr->text_offset != -1) {
       MTCP_PRINTF("Called with --text-offset 0x%x.  A useful command is:\n"
                   "(gdb) add-symbol-file ../../bin/mtcp_restart %p\n",

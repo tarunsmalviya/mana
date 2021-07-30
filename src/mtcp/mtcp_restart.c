@@ -704,7 +704,7 @@ restorememoryareas(RestoreInfo *rinfo_ptr)
       mtcp_sys_getpid()
     );
     restore_info.post_restart_debug(readTime, restore_info.mtcp_restart_pause);
-    // int dummy = 1;
+    // volatile int dummy = 1;
     // while (dummy);
   } else {
     restore_info.post_restart(readTime);

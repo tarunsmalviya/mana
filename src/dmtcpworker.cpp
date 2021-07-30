@@ -393,7 +393,7 @@ DmtcpWorker::waitForPreSuspendMessage()
     return;
   }
 
-  JTRACE("waiting for CHECKPOINT message");
+  JTRACE("waiting for CHECKPOINT (PRESUSPEND) message");
 
   DmtcpMessage msg;
   CoordinatorAPI::recvMsgFromCoordinator(&msg);
