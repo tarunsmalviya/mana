@@ -16,6 +16,19 @@ fi
 
 dir=`dirname $0`
 
+# Check for mtcp_restart-mpi first.
+if which mtcp_restart-mpi > /dev/null 2> /dev/null; then
+  mtcp_restart-mpi --simulate $1 2>&1
+  exit 0
+fi
+
+# This next one assumes that this script resides in DMTCP_ROOT/util/
+if test -x $dir/../bin/mtcp_restart-mpi; then
+  $dir/../bin/mtcp_restart-mpi --simulate $1 2>&1
+  exit 0
+fi
+
+# Else check for mtcp_restart.
 if which mtcp_restart > /dev/null 2> /dev/null; then
   mtcp_restart --simulate $1 2>&1
   exit 0

@@ -79,7 +79,7 @@ void mtcp_check_vdso(char **environ);
 static void mmapfile(int fd, void *buf, size_t size, int prot, int flags);
 #endif
 
-#define BINARY_NAME     "mtcp_restart"
+#define BINARY_NAME     "mtcp_restart-mpi"
 #define BINARY_NAME_M32 "mtcp_restart-32"
 
 /* struct RestoreInfo to pass all parameters from one function to next.
