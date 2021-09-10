@@ -231,6 +231,11 @@ mtcp_writememoryareas(int fd)
       continue;
     }
 
+    if (dmtcp_skip_memory_region_ckpting(&area) == 1) {
+       JTRACE("Skipping region as requested by the plugin");
+       continue;
+    }
+
     if (Util::strStartsWith(area.name, DEV_ZERO_DELETED_STR) ||
         Util::strStartsWith(area.name, DEV_NULL_DELETED_STR)) {
       /* If the process has an area labeled as "/dev/zero (deleted)", we mark
