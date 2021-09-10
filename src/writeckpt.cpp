@@ -38,6 +38,8 @@
 #include "shareddata.h"
 #include "util.h"
 
+#define HUGEPAGES
+
 #define DEV_ZERO_DELETED_STR "/dev/zero (deleted)"
 #define DEV_NULL_DELETED_STR "/dev/null (deleted)"
 
@@ -77,6 +79,57 @@ vector<ProcMapsArea> *nscdAreas = NULL;
 static void writememoryarea(int fd, Area *area, int stack_was_seen);
 
 static void remap_nscd_areas(const vector<ProcMapsArea> &areas);
+
+#ifdef HUGEPAGES
+// Later, we should make this available outside of MPU by copying conditionals
+//      in src/mtcp-mpi/mtcp_restart.c to src/mtcp-mpi/mtcp_restart.c
+# ifdef MPI
+// read a line from fd
+int read_line(int fd, char buf[], int size) {
+  int numRead;
+  int i = 0;
+  while (i < size && (numRead = read(fd, buf + i, 1)) > 0) {
+    JASSERT(numRead != -1) (JASSERT_ERRNO);
+    if (numRead == 0 || buf[i] == '\n') {
+      buf[i] = '\0';
+      break;
+    }
+    i++;
+  }
+  return i;
+}
+
+/* check if a memory area use hugepages */
+int is_hugepage(void *startAddr) {
+  char buf[512];
+  char startAddrStr[100];
+  int numBytes = 0;
+  sprintf(startAddrStr, "%p", startAddr);
+
+  int fd = _real_open("/proc/self/smaps", O_RDONLY);
+  JASSERT(fd != -1) (JASSERT_ERRNO);
+
+  while ((numBytes = read_line(fd, buf, 512))) {
+    // get start address from smaps
+    for (int i = 0; i < 512; i++) {
+      if (buf[i] == '-') {
+        buf[i] = '\0';
+        break;
+      }
+    }
+    if (strstr(buf, startAddrStr + 2) != NULL) {
+      // skip lines to find VmFlags
+      do {
+        read_line(fd, buf, 512);
+      } while (strstr(buf, "VmFlags") == NULL);
+      _real_close(fd);
+      return strstr(buf, "ht") != NULL;
+    }
+  }
+  return 0;
+}
+# endif
+#endif
 
 /*****************************************************************************
  *
@@ -294,6 +347,17 @@ mtcp_writememoryareas(int fd)
     if (strstr(area.name, "[stack]")) {
       stack_was_seen = 1;
     }
+
+#ifdef HUGEPAGES
+// Later, we should make this available outside of MPU by copying conditionals
+//      in src/mtcp-mpi/mtcp_restart.c to src/mtcp-mpi/mtcp_restart.c
+# ifdef MPI
+    // check if the area uses hugepages
+    area.hugepages =  area.size % (2 * 1024 * 1024) == 0 &&
+                      is_hugepage(area.addr);
+
+# endif
+#endif
 
     // the whole thing comes after the restore image
     writememoryarea(fd, &area, stack_was_seen);
