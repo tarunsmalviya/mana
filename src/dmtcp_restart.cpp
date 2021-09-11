@@ -304,8 +304,7 @@ class RestoreTarget
                              installDir.c_str(),
                              &compId,
                              &coordInfo,
-                             &localIPAddr,
-                             _pInfo.numPeers());
+                             &localIPAddr);
       Util::initializeLogFile(SharedData::getTmpDir().c_str(),
                               _pInfo.procname().c_str(),
                               NULL);
@@ -402,8 +401,7 @@ class RestoreTarget
                                installDir.c_str(),
                                &compId,
                                &coordInfo,
-                               &localIPAddr,
-                               _pInfo.numPeers());
+                               &localIPAddr);
 
         Util::initializeLogFile(SharedData::getTmpDir().c_str(),
                                 _pInfo.procname().c_str(),
