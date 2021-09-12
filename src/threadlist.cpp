@@ -318,7 +318,7 @@ prepareMtcpHeaderInfoForMPI(MtcpHeader *mtcpHdr)
   if (randomization) {
     // The analysis in the rest of this function assumes that
     // randomization is turned off.  MPI needs this information.
-    JWARNING( ! randomization )
+    JWARNING( !randomization )
       .Text("FIXME:  Linux process randomization is turned on.\n");
   }
 
@@ -499,9 +499,58 @@ checkpointhread(void *dummy)
     JTRACE("before DmtcpWorker::waitForCheckpointRequest()");
     DmtcpWorker::waitForCheckpointRequest();
 
+    /* FIXME: DmtcpWorker::waitForCheckpointRequest() called
+     *        ThreadSync::acquireLocks().
+     *        Should explicitly call it here.
+     */
+    /* All user thread locks for wrapper functions are acquired here.
+     * In particular, acquireLocks() acquires a write lock around wrappers:
+     *   DmtcpRWLockWrLock(&_wrapperExecutionLock)
+     * It will be safe to send the checkpoint signal to each thread only
+     *   when no thread has a read lock on _wrapperExecutionLock any longer.
+     */
+     // ThreadSync::acquireLocks();
+
     restoreInProgress = false;
 
     ThreadList::suspendThreads();
+
+    /* PROBLEM:  Even though the ckpt thread has the write lock,
+     *   a user thread can try (and fail) to acquire the read lock in
+     *   rwlock.cpp:DmtcpRWLockTryRdLock(), but then not yet have released
+     *   its mutex lock (rwlock->xLock) when the checkpoint signal arrives.
+     *   The checkpoint thread will then deadlock when it tries to use
+     *   the mutex lock to examine read-write locks within rwlock.cpp.
+     *   In particular, the checkpoint thread calls ThreadSync::acquireLocks().
+     * SOLUTION:  rwlock.cpp:DmtcpRWLockTryRdLock() should immediately return
+     *   with EBUSY if it detects a write lock, even without first acquiring
+     *   the mutex lock (rwlock->xLock).
+     */
+    /* FIXME:  This logic should use better function names to reflect the
+     *         reader-writer logic.  The mutex lock (rwlock->xlock) in
+     *         rwlock.cpp is the mutex associated with a condition variable
+     *         (monitor), and should be held only for a short time.
+     *         The function acquireLocks() above should be called
+     *         acquireWriteLocks().  The function releaseLocks() should be
+     *         called releaseWriteLocks().  A comment before releaseWriteLocks()
+     *         should explain that it is safe for the checkpoint thread to
+     *         release the write locks after all user threads have been
+     *         suspended in ThreadList::suspendThreads().  A general comment
+     *         should explain that user threads acquire read locks, while the
+     *         checkpoint thread acquires write locks.
+     *         The functions acquireWriteLocks() and releaseWriteLocks()
+     *         should be directly exposed here, instead of being hidden
+     *         inside DmtcpWorker::waitForCheckpointRequest() and
+     *         DmtcpWorker::preCheckpoint().
+     */
+    /* FIXME: DmtcpWorker::preCheckpoint() calls ThreadSync::releaseLocks().
+     *        Should explicitly call it here.
+     */
+    /* releaseLocks() will release the write unlock for
+     * _wrapperExecutionLock.  This is safe now, since all user threads
+     * are suspended.
+     */
+    // ThreadSync::releaseLocks();
 
     JTRACE("Prepare plugin, etc. for checkpoint");
     DmtcpWorker::preCheckpoint();

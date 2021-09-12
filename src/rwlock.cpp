@@ -19,6 +19,16 @@ int DmtcpRWLockTryRdLock(DmtcpRWLock *rwlock)
 {
   int result = EBUSY;
 
+  // IMPORTANT:  Don't do:
+  //  * acquire rwlock->xLock
+  //  * discover that a writer exists
+  //  * release rwlock->xLock
+  // A user thread that does that could be interrupted by a checkpoint
+  // signal before releasing rwlock->xLock.
+  if (rwlock->writer != 0 || rwlock->nWritersQueued) {
+    return result;
+  }
+
   if (DmtcpMutexTryLock(&rwlock->xLock) != 0) {
     return result;
   }
