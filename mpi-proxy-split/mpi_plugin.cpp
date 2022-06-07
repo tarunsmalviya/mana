@@ -19,9 +19,16 @@
  *  <http://www.gnu.org/licenses/>.                                         *
  ****************************************************************************/
 
+#include <stdio.h>
+#include <stdlib.h>
+#include <fcntl.h>
+#include <unistd.h>
 #include <signal.h>
 #include <sys/personality.h>
 #include <sys/mman.h>
+#include <string.h>
+#include <sys/types.h>
+#include <sys/stat.h>
 
 #include "mpi_plugin.h"
 #include "lower_half_api.h"
@@ -38,11 +45,12 @@
 #include "jfilesystem.h"
 #include "protectedfds.h"
 #include "procselfmaps.h"
+#include "../ds.h"
 
 using namespace dmtcp;
 
 /* Global variables */
-
+extern CartesianTopology g_cartesianTopology;
 int g_numMmaps = 0;
 MmapInfo_t *g_list = NULL;
 mana_state_t mana_state = UNKNOWN_STATE;
@@ -64,18 +72,24 @@ regionContains(const void *haystackStart,
 EXTERNC int
 dmtcp_skip_memory_region_ckpting(const ProcMapsArea *area)
 {
-  if (area->addr == lh_info.startText ||
-      strstr(area->name, "/dev/zero") ||
+  if (strstr(area->name, "/dev/zero") ||
       strstr(area->name, "/dev/kgni") ||
       /* DMTCP SysVIPC plugin should be able to C/R this correctly */
 //      strstr(area->name, "/SYSV") ||
       strstr(area->name, "/dev/xpmem") ||
       strstr(area->name, "xpmem") ||
       strstr(area->name, "hugetlbfs") ||
-      strstr(area->name, "/dev/shm") ||
-      area->addr == lh_info.startData) {
+      strstr(area->name, "/dev/shm")) {
     JTRACE("Ignoring region")(area->name)((void*)area->addr);
     return 1;
+  }
+  if (!lh_regions_list) return 0;
+  for (int i = 0; i < lh_info.numCoreRegions; i++) {
+    void *lhStartAddr = lh_regions_list[i].start_addr;
+    if (area->addr == lhStartAddr) {
+      JTRACE ("Ignoring LH core region") ((void*)area->addr);
+      return 1;
+    }
   }
   if (!g_list) return 0;
   for (int i = 0; i < g_numMmaps; i++) {
@@ -193,7 +207,7 @@ computeUnionOfCkptImageAddresses()
   }
 
   // Adjust libsStart to make 4GB space.
-  libsStart -= 4 * ONEGB;
+  libsStart = (void *)((uint64_t)libsStart - 4 * ONEGB);
 
   string kvdb = "MANA_CKPT_UNION";
   dmtcp_kvdb64(DMTCP_KVDB_MIN, kvdb.c_str(), 0, (int64_t) libsStart);
@@ -226,6 +240,56 @@ computeUnionOfCkptImageAddresses()
   dmtcp_add_to_ckpt_header("MANA_MinLibsStart", minLibsStartStr.c_str());
   dmtcp_add_to_ckpt_header("MANA_MaxLibsEnd", maxLibsEndStr.c_str());
   dmtcp_add_to_ckpt_header("MANA_MinHighMemStart", minHighMemStartStr.c_str());
+}
+
+const char *
+get_cartesian_topology_info_file_name()
+{
+  const char *ckptDir = dmtcp_get_ckpt_dir();
+  dmtcp::ostringstream o;
+  o << ckptDir << "/ckpt_rank_" << g_world_rank;
+
+  struct stat st;
+  // Create directory if not already exist
+  if (stat(o.str().c_str(), &st) == -1)
+    mkdir(o.str().c_str(), 0700);
+
+  o << "/cartesian.info";
+  dmtcp::string filename = o.str();
+
+  return strdup(filename.c_str());
+}
+
+void
+save_cartesian_topology_info(const char *filename)
+{
+  if (g_cartesianTopology.old_comm_size == g_cartesianTopology.new_comm_size ==
+      g_cartesianTopology.old_rank == g_cartesianTopology.new_rank == -1)
+    return;
+
+  int i;
+
+  int fd = open(filename, O_WRONLY | O_CREAT | O_TRUNC, 0755);
+  if (fd == -1)
+    return;
+
+  write(fd, &g_cartesianTopology.old_comm_size, sizeof(int));
+  write(fd, &g_cartesianTopology.new_comm_size, sizeof(int));
+  write(fd, &g_cartesianTopology.old_rank, sizeof(int));
+  write(fd, &g_cartesianTopology.new_rank, sizeof(int));
+  write(fd, &g_cartesianTopology.reorder, sizeof(int));
+  write(fd, &g_cartesianTopology.number_of_dimensions, sizeof(int));
+
+  for (i = 0; i < g_cartesianTopology.number_of_dimensions; i++)
+    write(fd, &g_cartesianTopology.coordinates[i], sizeof(int));
+
+  for (i = 0; i < g_cartesianTopology.number_of_dimensions; i++)
+    write(fd, &g_cartesianTopology.dimensions[i], sizeof(int));
+
+  for (i = 0; i < g_cartesianTopology.number_of_dimensions; i++)
+    write(fd, &g_cartesianTopology.periods[i], sizeof(int));
+
+  close(fd);
 }
 
 static void
@@ -309,6 +373,10 @@ mpi_plugin_event_hook(DmtcpEvent_t event, DmtcpEventData_t *data)
       dmtcp_global_barrier("MPI:Drain-Send-Recv");
       drainSendRecv(); // p2p_drain_send_recv.cpp
       computeUnionOfCkptImageAddresses();
+
+      dmtcp_global_barrier("MPI:save-cartesian-topology-info");
+      const char* file = get_cartesian_topology_info_file_name();
+      save_cartesian_topology_info(file);
 
     case DMTCP_EVENT_RESUME:
       clearPendingCkpt(); // two-phase-algo.cpp
