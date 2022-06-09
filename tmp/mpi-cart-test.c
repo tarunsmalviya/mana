@@ -46,13 +46,13 @@ int main(int argc, char* argv[])
     MPI_Cart_coords(new_communicator, b_cart_rank, 2, b_coords);
 
     printf("\nBEFORE [%d] -> World Size: %d | World Rank: %d | Cart Rank: %d | Coordinates: (%d, %d)\n", getppid(), b_world_size, b_world_rank, b_cart_rank, b_coords[0], b_coords[1]);
+    printf("Sleeping for 50 seconds; Checkpoint now!\n");
     fflush(stdout);
 
-#if 1
-    volatile int dummy = 1;
-    while(dummy) {};
-#endif
+    sleep(50);
 
+    printf("Done with the sleep; resuming now!\n");
+    fflush(stdout);
     // *************** AFTER ***************
     // Size of the default communicator
     MPI_Comm_size(MPI_COMM_WORLD, &a_world_size);
