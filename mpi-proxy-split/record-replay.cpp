@@ -597,10 +597,13 @@ restoreTypeCreateStruct(MpiRecord& rec)
 
 static MPI_Comm g_comm_cart;
 
-void setCartesianCommunicator(void *getCartesianCommunicatorFptr) {
-  typedef void (*getCartesianCommunicatorFptr_t)(MPI_Comm*);
-
-  ((getCartesianCommunicatorFptr_t) getCartesianCommunicatorFptr)(&g_comm_cart);
+void
+setCartesianCommunicator(void *fsaddr, void *getCartesianCommunicatorFptr)
+{
+  typedef void (*getCartesianCommunicatorFptr_t)(MPI_Comm *);
+  JUMP_TO_LOWER_HALF(fsaddr);
+  ((getCartesianCommunicatorFptr_t)getCartesianCommunicatorFptr)(&g_comm_cart);
+  RETURN_TO_UPPER_HALF();
 }
 
 static int

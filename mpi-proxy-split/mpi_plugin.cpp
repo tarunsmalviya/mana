@@ -399,7 +399,8 @@ mpi_plugin_event_hook(DmtcpEvent_t event, DmtcpEventData_t *data)
       volatile int dummy = 1;
       while (dummy) {};
 
-      setCartesianCommunicator(lh_info.getCartesianCommunicatorFptr);      
+      setCartesianCommunicator(lh_info.fsaddr,
+                               lh_info.getCartesianCommunicatorFptr);
       restoreMpiLogState(); // record-replay.cpp
       dmtcp_global_barrier("MPI:record-replay.cpp-void");
       replayMpiP2pOnRestart(); // p2p_log_replay.cpp
