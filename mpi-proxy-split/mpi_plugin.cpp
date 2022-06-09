@@ -395,6 +395,11 @@ mpi_plugin_event_hook(DmtcpEvent_t event, DmtcpEventData_t *data)
       resetDrainCounters(); // p2p_drain_send_recv.cpp
       mana_state = RESTART_REPLAY;
       dmtcp_global_barrier("MPI:restoreMpiLogState");
+
+      volatile int dummy = 1;
+      while (dummy) {};
+
+      setCartesianCommunicator(lh_info.getCartesianCommunicatorFptr);      
       restoreMpiLogState(); // record-replay.cpp
       dmtcp_global_barrier("MPI:record-replay.cpp-void");
       replayMpiP2pOnRestart(); // p2p_log_replay.cpp

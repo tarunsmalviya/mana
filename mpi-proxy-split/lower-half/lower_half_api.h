@@ -93,6 +93,7 @@ typedef struct _LowerHalfInfo
   void *lh_dlsym;     // Pointer to mydlsym() function in the lower half
   void *getRankFptr;  // Pointer to getRank() function in the lower half
   void *getCoordinatesFptr;  // Pointer to getCoordinates() function in the lower half
+  void *getCartesianCommunicatorFptr;
   void *parentStackStart; // Address to the start of the stack of the parent process (FIXME: Not currently used anywhere)
   void *updateEnvironFptr; // Pointer to updateEnviron() function in the lower half
   void *getMmappedListFptr; // Pointer to getMmapedList() function in the lower half

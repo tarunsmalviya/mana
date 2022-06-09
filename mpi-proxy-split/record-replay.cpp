@@ -27,6 +27,7 @@
 #include "record-replay.h"
 #include "virtual-ids.h"
 #include "p2p_log_replay.h"
+//#include "../restart_plugin/mtcp_restart_plugin.h"
 
 using namespace dmtcp_mpi;
 
@@ -594,11 +595,23 @@ restoreTypeCreateStruct(MpiRecord& rec)
   return retval;
 }
 
+static MPI_Comm g_comm_cart;
+
+void setCartesianCommunicator(void *getCartesianCommunicatorFptr) {
+  typedef void (*getCartesianCommunicatorFptr_t)(MPI_Comm*);
+
+  ((getCartesianCommunicatorFptr_t) getCartesianCommunicatorFptr)(&g_comm_cart);
+}
+
 static int
 restoreCartCreate(MpiRecord& rec)
 {
+  volatile int dummy = 1;
+  while (dummy) {};
+     
   int retval;
   MPI_Comm comm = rec.args(0);
+  /*
   int ndims = rec.args(1);
   int *dims = rec.args(2);
   int *periods = rec.args(3);
@@ -611,6 +624,12 @@ restoreCartCreate(MpiRecord& rec)
     UPDATE_COMM_MAP(virtComm, newcomm);
   }
   return retval;
+  */
+
+  MPI_Comm virtComm = rec.args(5);
+  UPDATE_COMM_MAP(virtComm, g_comm_cart);
+
+  return MPI_SUCCESS;
 }
 
 static int
