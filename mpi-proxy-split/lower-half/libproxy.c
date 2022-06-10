@@ -206,7 +206,7 @@ getRank()
   return world_rank;
 }
 
-static MPI_Comm g_comm_cart;
+MPI_Comm g_comm_cart;
 
 int
 getCoordinates(CartesianTopology *cartesianTopology, int *coords)
@@ -236,8 +236,8 @@ getCoordinates(CartesianTopology *cartesianTopology, int *coords)
   return rank;
 }
 
-void getCartesianCommunicator(MPI_Comm *comm_cart) {
-  comm_cart = &g_comm_cart;
+MPI_Comm getCartesianCommunicator() {
+  return g_comm_cart;
 }
 
 void*

@@ -718,7 +718,6 @@ namespace dmtcp_mpi
 // Restores the MPI state by recreating the communicator, groups, types, etc.
 // post restart
 extern void restoreMpiLogState();
-extern void setCartesianCommunicator(void *fsaddr,
-                                     void *getCartesianCommunicatorFptr);
+extern void setCartesianCommunicator(MPI_Comm comm_cart);
 
 #endif // ifndef MPI_RECORD_REPLAY_H

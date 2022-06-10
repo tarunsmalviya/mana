@@ -26,7 +26,7 @@ int main(int argc, char* argv[])
     MPI_Comm_rank(MPI_COMM_WORLD, &b_world_rank);
 
     // Ask MPI to decompose our processes in a 2D cartesian grid for us
-    int dims[2] = {1, 1};
+    int dims[2] = {1, 2};
     //MPI_Dims_create(size, 2, dims);
 
     // Make both dimensions periodic
@@ -49,7 +49,7 @@ int main(int argc, char* argv[])
     printf("Sleeping for 50 seconds; Checkpoint now!\n");
     fflush(stdout);
 
-    sleep(50);
+    sleep(500);
 
     printf("Done with the sleep; resuming now!\n");
     fflush(stdout);

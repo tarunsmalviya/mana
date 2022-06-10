@@ -23,6 +23,7 @@
 #define _LOWER_HALF_API_H
 
 #include <stdint.h>
+#include <mpi.h>
 
 #include "libproxy.h"
 
@@ -134,6 +135,7 @@ typedef void* (*updateEnviron_t)(char **environ);
 typedef void (*resetMmappedList_t)();
 typedef MmapInfo_t* (*getMmappedList_t)(int *num);
 typedef LhCoreRegions_t* (*getLhRegionsList_t)(int *num);
+typedef MPI_Comm (*getCartesianCommunicatorFptr_t)();
 
 // Global variables with lower-half information
 

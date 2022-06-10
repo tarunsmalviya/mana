@@ -292,6 +292,17 @@ save_cartesian_topology_info(const char *filename)
   close(fd);
 }
 
+
+MPI_Comm getCartesianCommFromLH()
+{
+  getCartesianCommunicatorFptr_t fnc = (getCartesianCommunicatorFptr_t)lh_info.getCartesianCommunicatorFptr;
+  MPI_Comm comm_cart;
+  if (fnc) {
+    comm_cart =fnc();
+  }
+  return comm_cart;
+}
+
 static void
 mpi_plugin_event_hook(DmtcpEvent_t event, DmtcpEventData_t *data)
 {
@@ -342,7 +353,7 @@ mpi_plugin_event_hook(DmtcpEvent_t event, DmtcpEventData_t *data)
           int64_t counter;
           if (dmtcp_kvdb64_get(csId.c_str(), 0, &counter) == -1) {
             // No rank published IN_CS state.
-            coord_response == SAFE_TO_CHECKPOINT;
+            coord_response = SAFE_TO_CHECKPOINT;
             break;
           }
 
@@ -360,23 +371,26 @@ mpi_plugin_event_hook(DmtcpEvent_t event, DmtcpEventData_t *data)
       break;
 
     case DMTCP_EVENT_PRECHECKPOINT:
-      logIbarrierIfInTrivBarrier(); // two-phase-algo.cpp
-      dmtcp_local_barrier("MPI:GetLocalLhMmapList");
-      getLhMmapList(); // two-phase-algo.cpp
-      dmtcp_local_barrier("MPI:GetLocalRankInfo");
-      getLocalRankInfo(); // p2p_log_replay.cpp
-      dmtcp_global_barrier("MPI:update-ckpt-dir-by-rank");
-      updateCkptDirByRank(); // mpi_plugin.cpp
-      dmtcp_global_barrier("MPI:Register-local-sends-and-receives");
-      mana_state = CKPT_P2P;
-      registerLocalSendsAndRecvs(); // p2p_drain_send_recv.cpp
-      dmtcp_global_barrier("MPI:Drain-Send-Recv");
-      drainSendRecv(); // p2p_drain_send_recv.cpp
-      computeUnionOfCkptImageAddresses();
+      {
+        logIbarrierIfInTrivBarrier(); // two-phase-algo.cpp
+        dmtcp_local_barrier("MPI:GetLocalLhMmapList");
+        getLhMmapList(); // two-phase-algo.cpp
+        dmtcp_local_barrier("MPI:GetLocalRankInfo");
+        getLocalRankInfo(); // p2p_log_replay.cpp
+        dmtcp_global_barrier("MPI:update-ckpt-dir-by-rank");
+        updateCkptDirByRank(); // mpi_plugin.cpp
+        dmtcp_global_barrier("MPI:Register-local-sends-and-receives");
+        mana_state = CKPT_P2P;
+        registerLocalSendsAndRecvs(); // p2p_drain_send_recv.cpp
+        dmtcp_global_barrier("MPI:Drain-Send-Recv");
+        drainSendRecv(); // p2p_drain_send_recv.cpp
+        computeUnionOfCkptImageAddresses();
 
-      dmtcp_global_barrier("MPI:save-cartesian-topology-info");
-      const char* file = get_cartesian_topology_info_file_name();
-      save_cartesian_topology_info(file);
+        dmtcp_global_barrier("MPI:save-cartesian-topology-info");
+        const char* file = get_cartesian_topology_info_file_name();
+        save_cartesian_topology_info(file);
+        break;
+      }
 
     case DMTCP_EVENT_RESUME:
       clearPendingCkpt(); // two-phase-algo.cpp
@@ -386,29 +400,30 @@ mpi_plugin_event_hook(DmtcpEvent_t event, DmtcpEventData_t *data)
       break;
 
     case DMTCP_EVENT_RESTART:
-      save2pcGlobals(); // two-phase-algo.cpp
-      dmtcp_local_barrier("MPI:updateEnviron");
-      updateLhEnviron(); // mpi-plugin.cpp
-      dmtcp_local_barrier("MPI:Clear-Pending-Ckpt-Msg-Post-Restart");
-      clearPendingCkpt(); // two-phase-algo.cpp
-      dmtcp_local_barrier("MPI:Reset-Drain-Send-Recv-Counters");
-      resetDrainCounters(); // p2p_drain_send_recv.cpp
-      mana_state = RESTART_REPLAY;
-      dmtcp_global_barrier("MPI:restoreMpiLogState");
+      {
+        save2pcGlobals(); // two-phase-algo.cpp
+        dmtcp_local_barrier("MPI:updateEnviron");
+        updateLhEnviron(); // mpi-plugin.cpp
+        dmtcp_local_barrier("MPI:Clear-Pending-Ckpt-Msg-Post-Restart");
+        clearPendingCkpt(); // two-phase-algo.cpp
+        dmtcp_local_barrier("MPI:Reset-Drain-Send-Recv-Counters");
+        resetDrainCounters(); // p2p_drain_send_recv.cpp
+        mana_state = RESTART_REPLAY;
+        dmtcp_global_barrier("MPI:restoreMpiLogState");
 
-      volatile int dummy = 1;
-      while (dummy) {};
-
-      setCartesianCommunicator(lh_info.fsaddr,
-                               lh_info.getCartesianCommunicatorFptr);
-      restoreMpiLogState(); // record-replay.cpp
-      dmtcp_global_barrier("MPI:record-replay.cpp-void");
-      replayMpiP2pOnRestart(); // p2p_log_replay.cpp
-      dmtcp_local_barrier("MPI:p2p_log_replay.cpp-void");
-      restore2pcGlobals(); // two-phase-algo.cpp
-      mana_state = RUNNING;
-      break;
-
+        // volatile int dummy = 1;
+        // while (dummy) {};
+        // TODO: make it global
+        MPI_Comm lh_comm_cart = getCartesianCommFromLH();
+        setCartesianCommunicator(lh_comm_cart);
+        restoreMpiLogState(); // record-replay.cpp
+        dmtcp_global_barrier("MPI:record-replay.cpp-void");
+        replayMpiP2pOnRestart(); // p2p_log_replay.cpp
+        dmtcp_local_barrier("MPI:p2p_log_replay.cpp-void");
+        restore2pcGlobals(); // two-phase-algo.cpp
+        mana_state = RUNNING;
+        break;
+      }
     default:
       break;
   }
